@@ -1,0 +1,49 @@
+# Virtual environment
+.venv/
+venv/
+env/
+ENV/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# mypy / pyright
+.mypy_cache/
+.pyright/
+
+# ruff
+.ruff_cache/
+
+# Alembic — keep versions tracked, ignore pyc inside
+alembic/versions/__pycache__/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
