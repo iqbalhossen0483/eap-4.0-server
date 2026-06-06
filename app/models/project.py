@@ -1,9 +1,18 @@
+from __future__ import annotations
+
 import uuid
 from datetime import datetime, timezone, date
+from typing import TYPE_CHECKING
 from sqlalchemy import String, Text, Date, DateTime, ForeignKey, Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 from app.models.enums import ProjectStatus
+
+if TYPE_CHECKING:
+    from app.models.user import User
+    from app.models.project_member import ProjectMember
+    from app.models.task import Task
+    from app.models.activity_log import ActivityLog
 
 
 class Project(Base):

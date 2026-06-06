@@ -70,4 +70,8 @@ async def search(
     for p in projects:
         p.task_count = 0
 
-    return SearchResponse(projects=list(projects), tasks=list(tasks), users=list(users))
+    return SearchResponse(
+        projects=[ProjectRead.model_validate(p) for p in projects],
+        tasks=[TaskRead.model_validate(t) for t in tasks],
+        users=[UserRead.model_validate(u) for u in users],
+    )

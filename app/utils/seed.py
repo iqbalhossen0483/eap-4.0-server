@@ -46,8 +46,8 @@ async def seed() -> None:
         ]
         created_projects: list[Project] = []
         for p in projects_data:
-            existing = (await db.execute(select(Project).where(Project.name == p["name"]))).scalar_one_or_none()
-            if not existing:
+            existing_project = (await db.execute(select(Project).where(Project.name == p["name"]))).scalar_one_or_none()
+            if not existing_project:
                 project = Project(owner_id=manager.id, **p)
                 db.add(project)
                 await db.flush()
@@ -56,7 +56,7 @@ async def seed() -> None:
                 db.add(ProjectMember(project_id=project.id, user_id=member.id))
                 created_projects.append(project)
             else:
-                created_projects.append(existing)
+                created_projects.append(existing_project)
 
         # --- Tasks (only if first project was just created) ---
         if created_projects:
@@ -67,8 +67,8 @@ async def seed() -> None:
                 {"title": "Write Tests", "due_date": date.today() + timedelta(days=20), "priority": Priority.low, "status": TaskStatus.todo, "assigned_to": None},
             ]
             for t in tasks_data:
-                existing = (await db.execute(select(Task).where(Task.title == t["title"], Task.project_id == proj.id))).scalar_one_or_none()
-                if not existing:
+                existing_task = (await db.execute(select(Task).where(Task.title == t["title"], Task.project_id == proj.id))).scalar_one_or_none()
+                if not existing_task:
                     db.add(Task(project_id=proj.id, created_by=manager.id, **t))
 
         await db.commit()

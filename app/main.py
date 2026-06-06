@@ -20,7 +20,7 @@ from app.routers import (
     search,
 )
 
-logger = logging.getLogger("uvicorn.access")
+logger = logging.getLogger("app.access")
 
 
 @asynccontextmanager

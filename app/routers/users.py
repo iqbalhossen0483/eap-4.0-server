@@ -33,11 +33,11 @@ async def list_users(
     if search:
         q = q.where(or_(User.name.ilike(f"%{search}%"), User.email.ilike(f"%{search}%")))
 
-    total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar()
+    total: int = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar() or 0
     rows = (await db.execute(q.order_by(User.name).offset((page - 1) * page_size).limit(page_size))).scalars().all()
 
     return PaginatedResponse(
-        items=rows,
+        items=list(rows),
         total=total,
         page=page,
         page_size=page_size,

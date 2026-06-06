@@ -1,9 +1,18 @@
+from __future__ import annotations
+
 import uuid
 from datetime import datetime, timezone, date
+from typing import TYPE_CHECKING
 from sqlalchemy import String, Text, Date, DateTime, ForeignKey, Enum as SAEnum, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 from app.models.enums import TaskStatus, Priority
+
+if TYPE_CHECKING:
+    from app.models.project import Project
+    from app.models.user import User
+    from app.models.comment import Comment
+    from app.models.attachment import Attachment
 
 
 class Task(Base):

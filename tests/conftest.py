@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import AsyncGenerator
 import pytest
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
@@ -42,7 +43,7 @@ async def reset_db(test_engine):
 
 
 @pytest.fixture
-async def db(TestAsyncSession) -> AsyncSession:
+async def db(TestAsyncSession) -> AsyncGenerator[AsyncSession, None]:
     async with TestAsyncSession() as session:
         yield session
 
@@ -58,7 +59,7 @@ def override_db(TestAsyncSession):
 
 
 @pytest.fixture
-async def client() -> AsyncClient:
+async def client() -> AsyncGenerator[AsyncClient, None]:
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
 

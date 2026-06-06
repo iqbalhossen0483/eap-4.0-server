@@ -10,7 +10,8 @@ from app.models import user, project, project_member, task, comment, attachment,
 from app.config import settings
 
 config = context.config
-fileConfig(config.config_file_name)
+if config.config_file_name is not None:
+    fileConfig(config.config_file_name)
 
 # Override URL from settings so alembic.ini doesn't need the real password
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)

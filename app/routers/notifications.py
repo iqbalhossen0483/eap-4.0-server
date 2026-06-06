@@ -21,10 +21,10 @@ async def list_notifications(
     current_user: User = Depends(get_current_user),
 ):
     q = select(Notification).where(Notification.user_id == current_user.id).order_by(Notification.created_at.desc())
-    total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar()
+    total: int = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar() or 0
     rows = (await db.execute(q.offset((page - 1) * page_size).limit(page_size))).scalars().all()
     return PaginatedResponse(
-        items=rows, total=total, page=page, page_size=page_size,
+        items=list(rows), total=total, page=page, page_size=page_size,
         total_pages=math.ceil(total / page_size) if total else 0,
     )
 
