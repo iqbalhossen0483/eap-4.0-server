@@ -6,13 +6,14 @@ from app.database import get_db
 from app.models.user import User
 from app.models.enums import Role
 from app.schemas.auth import SignupRequest, LoginRequest, TokenResponse, UserRead, UserUpdate, PasswordChange
+from app.schemas.response import ApiResponse, ok
 from app.utils.security import hash_password, verify_password, create_access_token
 from app.dependencies.auth import get_current_user
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/signup", response_model=UserRead, status_code=201)
+@router.post("/signup", response_model=ApiResponse[UserRead], status_code=201)
 async def signup(body: SignupRequest, db: AsyncSession = Depends(get_db)):
     existing = (await db.execute(select(User).where(User.email == body.email))).scalar_one_or_none()
     if existing:
@@ -27,10 +28,10 @@ async def signup(body: SignupRequest, db: AsyncSession = Depends(get_db)):
     db.add(user)
     await db.commit()
     await db.refresh(user)
-    return user
+    return ok(UserRead.model_validate(user), "Account created successfully")
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=ApiResponse[TokenResponse])
 async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
     user = (await db.execute(select(User).where(User.email == body.email))).scalar_one_or_none()
     if not user or not user.is_active:
@@ -39,15 +40,15 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     token = create_access_token({"sub": user.id, "role": user.role.value})
-    return TokenResponse(access_token=token)
+    return ok(TokenResponse(access_token=token), "Login successful")
 
 
-@router.get("/me", response_model=UserRead)
+@router.get("/me", response_model=ApiResponse[UserRead])
 async def get_me(current_user: User = Depends(get_current_user)):
-    return current_user
+    return ok(UserRead.model_validate(current_user), "User retrieved")
 
 
-@router.put("/profile", response_model=UserRead)
+@router.put("/profile", response_model=ApiResponse[UserRead])
 async def update_profile(
     body: UserUpdate,
     db: AsyncSession = Depends(get_db),
@@ -57,10 +58,10 @@ async def update_profile(
         setattr(current_user, field, value)
     await db.commit()
     await db.refresh(current_user)
-    return current_user
+    return ok(UserRead.model_validate(current_user), "Profile updated")
 
 
-@router.post("/change-password", status_code=204)
+@router.post("/change-password", response_model=ApiResponse[None])
 async def change_password(
     body: PasswordChange,
     db: AsyncSession = Depends(get_db),
@@ -70,9 +71,9 @@ async def change_password(
         raise HTTPException(status_code=400, detail="Current password is incorrect")
     current_user.hashed_password = await hash_password(body.new_password)
     await db.commit()
+    return ok(None, "Password changed successfully")
 
 
-@router.post("/logout", status_code=204)
+@router.post("/logout", response_model=ApiResponse[None])
 async def logout(current_user: User = Depends(get_current_user)):
-    # Stateless JWT — client discards the token
-    pass
+    return ok(None, "Logged out successfully")

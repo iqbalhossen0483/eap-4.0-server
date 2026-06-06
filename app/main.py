@@ -1,12 +1,13 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
-import time
 import logging
+import time
 
 from app.utils.cloudinary_config import init_cloudinary
+from app.schemas.response import ErrorResponse
 from app.routers import (
     auth,
     users,
@@ -45,7 +46,7 @@ app.add_middleware(
 
 
 @app.middleware("http")
-async def request_logger(request, call_next):
+async def request_logger(request: Request, call_next):
     start = time.time()
     response = await call_next(request)
     duration = round((time.time() - start) * 1000, 1)
@@ -55,17 +56,38 @@ async def request_logger(request, call_next):
     return response
 
 
-@app.exception_handler(IntegrityError)
-async def integrity_error_handler(request, exc):
+@app.exception_handler(HTTPException)
+async def http_exception_handler(_: Request, exc: HTTPException):
     return JSONResponse(
-        status_code=409, content={"detail": "A record with this value already exists"}
+        status_code=exc.status_code,
+        content=ErrorResponse(
+            message=exc.detail if isinstance(exc.detail, str) else "Request error",
+            details=str(exc.detail),
+        ).model_dump(),
+    )
+
+
+@app.exception_handler(IntegrityError)
+async def integrity_error_handler(_: Request, __: IntegrityError):
+    return JSONResponse(
+        status_code=409,
+        content=ErrorResponse(
+            message="A record with this value already exists",
+            details="Integrity constraint violation",
+        ).model_dump(),
     )
 
 
 @app.exception_handler(Exception)
-async def generic_error_handler(request, exc):
+async def generic_error_handler(request: Request, exc: Exception):
     logger.exception(exc)
-    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+    return JSONResponse(
+        status_code=500,
+        content=ErrorResponse(
+            message="Internal server error",
+            details=str(exc),
+        ).model_dump(),
+    )
 
 
 @app.get("/health", tags=["health"])

@@ -1,4 +1,3 @@
-import math
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -6,7 +5,7 @@ from app.database import get_db
 from app.models.user import User
 from app.models.enums import Role
 from app.schemas.task import TaskCreate, TaskUpdate, TaskStatusUpdate, TaskRead
-from app.schemas.common import PaginatedResponse
+from app.schemas.response import ApiResponse, ok, ok_paginated
 from app.dependencies.auth import get_current_user, require_role
 from app.services import task_service
 from app.services.notification_service import create_notification
@@ -28,20 +27,19 @@ def _task_filters(
                 deadline_status=deadline_status, sort_by=sort_by, page=page, page_size=page_size)
 
 
-@router.get("/tasks", response_model=PaginatedResponse[TaskRead])
+@router.get("/tasks", response_model=ApiResponse[list[TaskRead]])
 async def list_all_tasks(
     filters: dict = Depends(_task_filters),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     rows, total = await task_service.list_tasks(db, current_user, **filters)
-    return PaginatedResponse(
-        items=rows, total=total, page=filters["page"], page_size=filters["page_size"],
-        total_pages=math.ceil(total / filters["page_size"]) if total else 0,
+    return ok_paginated(
+        [TaskRead.model_validate(r) for r in rows], total, filters["page"], filters["page_size"], "Tasks retrieved"
     )
 
 
-@router.get("/projects/{project_id}/tasks", response_model=PaginatedResponse[TaskRead])
+@router.get("/projects/{project_id}/tasks", response_model=ApiResponse[list[TaskRead]])
 async def list_project_tasks(
     project_id: str,
     filters: dict = Depends(_task_filters),
@@ -49,13 +47,12 @@ async def list_project_tasks(
     current_user: User = Depends(get_current_user),
 ):
     rows, total = await task_service.list_tasks(db, current_user, project_id=project_id, **filters)
-    return PaginatedResponse(
-        items=rows, total=total, page=filters["page"], page_size=filters["page_size"],
-        total_pages=math.ceil(total / filters["page_size"]) if total else 0,
+    return ok_paginated(
+        [TaskRead.model_validate(r) for r in rows], total, filters["page"], filters["page_size"], "Tasks retrieved"
     )
 
 
-@router.post("/projects/{project_id}/tasks", response_model=TaskRead, status_code=201)
+@router.post("/projects/{project_id}/tasks", response_model=ApiResponse[TaskRead], status_code=201)
 async def create_task(
     project_id: str,
     body: TaskCreate,
@@ -67,19 +64,20 @@ async def create_task(
     if task.assigned_to and task.assigned_to != current_user.id:
         await create_notification(db, task.assigned_to, f"You have been assigned: {task.title}", f"/tasks/{task.id}")
     await db.commit()
-    return task
+    return ok(TaskRead.model_validate(task), "Task created successfully")
 
 
-@router.get("/tasks/{task_id}", response_model=TaskRead)
+@router.get("/tasks/{task_id}", response_model=ApiResponse[TaskRead])
 async def get_task(
     task_id: str,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return await task_service.get_task(db, task_id, current_user)
+    task = await task_service.get_task(db, task_id, current_user)
+    return ok(TaskRead.model_validate(task), "Task retrieved")
 
 
-@router.put("/tasks/{task_id}", response_model=TaskRead)
+@router.put("/tasks/{task_id}", response_model=ApiResponse[TaskRead])
 async def update_task(
     task_id: str,
     body: TaskUpdate,
@@ -91,10 +89,10 @@ async def update_task(
     if body.assigned_to and body.assigned_to != current_user.id:
         await create_notification(db, body.assigned_to, f"You have been assigned: {task.title}", f"/tasks/{task_id}")
     await db.commit()
-    return task
+    return ok(TaskRead.model_validate(task), "Task updated successfully")
 
 
-@router.patch("/tasks/{task_id}/status", response_model=TaskRead)
+@router.patch("/tasks/{task_id}/status", response_model=ApiResponse[TaskRead])
 async def update_task_status(
     task_id: str,
     body: TaskStatusUpdate,
@@ -104,13 +102,14 @@ async def update_task_status(
     task = await task_service.update_task_status(db, task_id, body, current_user)
     await log_activity(db, current_user, "task.status_changed", "Task", task_id, task.project_id, {"status": body.status.value})
     await db.commit()
-    return task
+    return ok(TaskRead.model_validate(task), "Task status updated")
 
 
-@router.delete("/tasks/{task_id}", status_code=204)
+@router.delete("/tasks/{task_id}", response_model=ApiResponse[None])
 async def delete_task(
     task_id: str,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_role(Role.admin, Role.project_manager)),
 ):
     await task_service.delete_task(db, task_id, current_user)
+    return ok(None, "Task deleted successfully")

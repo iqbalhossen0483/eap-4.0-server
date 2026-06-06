@@ -15,6 +15,7 @@ from app.schemas.dashboard import (
     TeamProductivity, UpcomingDeadline, HighPriorityTask, DashboardResponse,
 )
 from app.schemas.auth import UserSummary
+from app.schemas.response import ApiResponse, ok
 from app.dependencies.auth import get_current_user
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -129,57 +130,60 @@ async def _get_high_priority_tasks(db: AsyncSession, project_ids: list[str]) -> 
     return [HighPriorityTask(id=t.id, title=t.title, project_id=t.project_id, project_name=t.project.name, priority=t.priority, status=t.status, due_date=t.due_date) for t in tasks]
 
 
-@router.get("", response_model=DashboardResponse)
+@router.get("", response_model=ApiResponse[DashboardResponse])
 async def get_dashboard(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     project_ids = await _accessible_project_ids(db, current_user)
-    return DashboardResponse(
-        kpi=await _get_kpi(db, project_ids),
-        project_summaries=await _get_project_summaries(db, project_ids),
-        tasks_by_priority=await _get_tasks_by_priority(db, project_ids),
-        task_status_distribution=await _get_task_status_distribution(db, project_ids),
-        team_productivity=await _get_team_productivity(db, project_ids),
-        upcoming_deadlines=await _get_upcoming_deadlines(db, project_ids),
-        high_priority_tasks=await _get_high_priority_tasks(db, project_ids),
+    return ok(
+        DashboardResponse(
+            kpi=await _get_kpi(db, project_ids),
+            project_summaries=await _get_project_summaries(db, project_ids),
+            tasks_by_priority=await _get_tasks_by_priority(db, project_ids),
+            task_status_distribution=await _get_task_status_distribution(db, project_ids),
+            team_productivity=await _get_team_productivity(db, project_ids),
+            upcoming_deadlines=await _get_upcoming_deadlines(db, project_ids),
+            high_priority_tasks=await _get_high_priority_tasks(db, project_ids),
+        ),
+        "Dashboard retrieved",
     )
 
 
-@router.get("/kpi", response_model=KPIStats)
+@router.get("/kpi", response_model=ApiResponse[KPIStats])
 async def get_kpi(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     project_ids = await _accessible_project_ids(db, current_user)
-    return await _get_kpi(db, project_ids)
+    return ok(await _get_kpi(db, project_ids), "KPI stats retrieved")
 
 
-@router.get("/project-summaries", response_model=list[ProjectSummary])
+@router.get("/project-summaries", response_model=ApiResponse[list[ProjectSummary]])
 async def get_project_summaries(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     project_ids = await _accessible_project_ids(db, current_user)
-    return await _get_project_summaries(db, project_ids)
+    return ok(await _get_project_summaries(db, project_ids), "Project summaries retrieved")
 
 
-@router.get("/tasks-by-priority", response_model=list[TasksByPriority])
+@router.get("/tasks-by-priority", response_model=ApiResponse[list[TasksByPriority]])
 async def get_tasks_by_priority(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     project_ids = await _accessible_project_ids(db, current_user)
-    return await _get_tasks_by_priority(db, project_ids)
+    return ok(await _get_tasks_by_priority(db, project_ids), "Tasks by priority retrieved")
 
 
-@router.get("/task-status-distribution", response_model=list[TaskStatusDistribution])
+@router.get("/task-status-distribution", response_model=ApiResponse[list[TaskStatusDistribution]])
 async def get_task_status_distribution(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     project_ids = await _accessible_project_ids(db, current_user)
-    return await _get_task_status_distribution(db, project_ids)
+    return ok(await _get_task_status_distribution(db, project_ids), "Task status distribution retrieved")
 
 
-@router.get("/team-productivity", response_model=list[TeamProductivity])
+@router.get("/team-productivity", response_model=ApiResponse[list[TeamProductivity]])
 async def get_team_productivity(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     project_ids = await _accessible_project_ids(db, current_user)
-    return await _get_team_productivity(db, project_ids)
+    return ok(await _get_team_productivity(db, project_ids), "Team productivity retrieved")
 
 
-@router.get("/upcoming-deadlines", response_model=list[UpcomingDeadline])
+@router.get("/upcoming-deadlines", response_model=ApiResponse[list[UpcomingDeadline]])
 async def get_upcoming_deadlines(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     project_ids = await _accessible_project_ids(db, current_user)
-    return await _get_upcoming_deadlines(db, project_ids)
+    return ok(await _get_upcoming_deadlines(db, project_ids), "Upcoming deadlines retrieved")
 
 
-@router.get("/high-priority-tasks", response_model=list[HighPriorityTask])
+@router.get("/high-priority-tasks", response_model=ApiResponse[list[HighPriorityTask]])
 async def get_high_priority_tasks(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     project_ids = await _accessible_project_ids(db, current_user)
-    return await _get_high_priority_tasks(db, project_ids)
+    return ok(await _get_high_priority_tasks(db, project_ids), "High priority tasks retrieved")

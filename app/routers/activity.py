@@ -1,4 +1,3 @@
-import math
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,13 +7,13 @@ from app.database import get_db
 from app.models.activity_log import ActivityLog
 from app.models.user import User
 from app.schemas.activity import ActivityRead
-from app.schemas.common import PaginatedResponse
+from app.schemas.response import ApiResponse, ok_paginated
 from app.dependencies.auth import get_current_user
 
 router = APIRouter(prefix="/activity", tags=["activity"])
 
 
-@router.get("", response_model=PaginatedResponse[ActivityRead])
+@router.get("", response_model=ApiResponse[list[ActivityRead]])
 async def list_activity(
     project_id: str | None = Query(None),
     actor_id: str | None = Query(None),
@@ -33,10 +32,6 @@ async def list_activity(
     total: int = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar() or 0
     rows = (await db.execute(q.offset((page - 1) * limit).limit(limit))).scalars().all()
 
-    return PaginatedResponse(
-        items=list(rows),
-        total=total,
-        page=page,
-        page_size=limit,
-        total_pages=math.ceil(total / limit) if total else 0,
+    return ok_paginated(
+        [ActivityRead.model_validate(r) for r in rows], total, page, limit, "Activity retrieved"
     )
