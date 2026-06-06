@@ -37,31 +37,78 @@ async def search(
     if current_user.role == Role.admin:
         project_ids_q = select(Project.id)
     else:
-        project_ids_q = select(ProjectMember.project_id).where(ProjectMember.user_id == current_user.id)
+        project_ids_q = select(ProjectMember.project_id).where(
+            ProjectMember.user_id == current_user.id
+        )
     accessible_ids = (await db.execute(project_ids_q)).scalars().all()
 
-    projects = (await db.execute(
-        select(Project).where(Project.id.in_(accessible_ids), Project.name.ilike(term)).limit(10)
-    )).scalars().all()
+    projects = (
+        (
+            await db.execute(
+                select(Project)
+                .where(Project.id.in_(accessible_ids), Project.name.ilike(term))
+                .limit(10)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
-    tasks = (await db.execute(
-        select(Task).options(joinedload(Task.assigned_user)).where(
-            Task.project_id.in_(accessible_ids),
-            or_(Task.title.ilike(term), Task.description.ilike(term)),
-        ).limit(10)
-    )).scalars().all()
+    tasks = (
+        (
+            await db.execute(
+                select(Task)
+                .options(joinedload(Task.assigned_user))
+                .where(
+                    Task.project_id.in_(accessible_ids),
+                    or_(Task.title.ilike(term), Task.description.ilike(term)),
+                )
+                .limit(10)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     if current_user.role == Role.admin:
-        users = (await db.execute(
-            select(User).where(User.name.ilike(term), User.is_active == True).limit(10)  # noqa: E712
-        )).scalars().all()
+        users = (
+            (
+                await db.execute(
+                    select(User)
+                    .where(User.name.ilike(term), User.is_active == True)
+                    .limit(10)  # noqa: E712
+                )
+            )
+            .scalars()
+            .all()
+        )
     else:
-        visible = (await db.execute(
-            select(ProjectMember.user_id).where(ProjectMember.project_id.in_(accessible_ids)).distinct()
-        )).scalars().all()
-        users = (await db.execute(
-            select(User).where(User.id.in_(visible), User.name.ilike(term), User.is_active == True).limit(10)  # noqa: E712
-        )).scalars().all()
+        visible = (
+            (
+                await db.execute(
+                    select(ProjectMember.user_id)
+                    .where(ProjectMember.project_id.in_(accessible_ids))
+                    .distinct()
+                )
+            )
+            .scalars()
+            .all()
+        )
+        users = (
+            (
+                await db.execute(
+                    select(User)
+                    .where(
+                        User.id.in_(visible),
+                        User.name.ilike(term),
+                        User.is_active == True,
+                    )
+                    .limit(10)  # noqa: E712
+                )
+            )
+            .scalars()
+            .all()
+        )
 
     for p in projects:
         p.task_count = 0

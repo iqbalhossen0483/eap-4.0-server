@@ -11,8 +11,14 @@ from app.models.task import Task
 from app.models.user import User
 from app.models.enums import Role, TaskStatus, Priority
 from app.schemas.dashboard import (
-    KPIStats, ProjectSummary, TasksByPriority, TaskStatusDistribution,
-    TeamProductivity, UpcomingDeadline, HighPriorityTask, DashboardResponse,
+    KPIStats,
+    ProjectSummary,
+    TasksByPriority,
+    TaskStatusDistribution,
+    TeamProductivity,
+    UpcomingDeadline,
+    HighPriorityTask,
+    DashboardResponse,
 )
 from app.schemas.auth import UserSummary
 from app.schemas.response import ApiResponse, ok
@@ -25,20 +31,52 @@ async def _accessible_project_ids(db: AsyncSession, current_user: User) -> list[
     if current_user.role == Role.admin:
         rows = (await db.execute(select(Project.id))).scalars().all()
     else:
-        rows = (await db.execute(
-            select(ProjectMember.project_id).where(ProjectMember.user_id == current_user.id)
-        )).scalars().all()
+        rows = (
+            (
+                await db.execute(
+                    select(ProjectMember.project_id).where(
+                        ProjectMember.user_id == current_user.id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
     return list(rows)
 
 
 async def _get_kpi(db: AsyncSession, project_ids: list[str]) -> KPIStats:
     total_projects = len(project_ids)
     if not project_ids:
-        return KPIStats(total_projects=0, total_tasks=0, completed_tasks=0, pending_tasks=0, overdue_tasks=0)
+        return KPIStats(
+            total_projects=0,
+            total_tasks=0,
+            completed_tasks=0,
+            pending_tasks=0,
+            overdue_tasks=0,
+        )
 
-    total_tasks = (await db.execute(select(func.count(Task.id)).where(Task.project_id.in_(project_ids)))).scalar() or 0
-    completed = (await db.execute(select(func.count(Task.id)).where(Task.project_id.in_(project_ids), Task.status == TaskStatus.completed))).scalar() or 0
-    overdue = (await db.execute(select(func.count(Task.id)).where(Task.project_id.in_(project_ids), Task.due_date < date.today(), Task.status != TaskStatus.completed))).scalar() or 0
+    total_tasks = (
+        await db.execute(
+            select(func.count(Task.id)).where(Task.project_id.in_(project_ids))
+        )
+    ).scalar() or 0
+    completed = (
+        await db.execute(
+            select(func.count(Task.id)).where(
+                Task.project_id.in_(project_ids), Task.status == TaskStatus.completed
+            )
+        )
+    ).scalar() or 0
+    overdue = (
+        await db.execute(
+            select(func.count(Task.id)).where(
+                Task.project_id.in_(project_ids),
+                Task.due_date < date.today(),
+                Task.status != TaskStatus.completed,
+            )
+        )
+    ).scalar() or 0
     return KPIStats(
         total_projects=total_projects,
         total_tasks=total_tasks,
@@ -48,97 +86,208 @@ async def _get_kpi(db: AsyncSession, project_ids: list[str]) -> KPIStats:
     )
 
 
-async def _get_project_summaries(db: AsyncSession, project_ids: list[str]) -> list[ProjectSummary]:
+async def _get_project_summaries(
+    db: AsyncSession, project_ids: list[str]
+) -> list[ProjectSummary]:
     if not project_ids:
         return []
-    projects = (await db.execute(select(Project).where(Project.id.in_(project_ids)))).scalars().all()
+    projects = (
+        (await db.execute(select(Project).where(Project.id.in_(project_ids))))
+        .scalars()
+        .all()
+    )
     result = []
     for p in projects:
-        total = (await db.execute(select(func.count(Task.id)).where(Task.project_id == p.id))).scalar() or 0
-        completed = (await db.execute(select(func.count(Task.id)).where(Task.project_id == p.id, Task.status == TaskStatus.completed))).scalar() or 0
-        result.append(ProjectSummary(
-            id=p.id, name=p.name, status=p.status, deadline=p.deadline,
-            task_count=total, completed_count=completed,
-            completion_percent=round(completed / total * 100, 1) if total else 0.0,
-        ))
+        total = (
+            await db.execute(select(func.count(Task.id)).where(Task.project_id == p.id))
+        ).scalar() or 0
+        completed = (
+            await db.execute(
+                select(func.count(Task.id)).where(
+                    Task.project_id == p.id, Task.status == TaskStatus.completed
+                )
+            )
+        ).scalar() or 0
+        result.append(
+            ProjectSummary(
+                id=p.id,
+                name=p.name,
+                status=p.status,
+                deadline=p.deadline,
+                task_count=total,
+                completed_count=completed,
+                completion_percent=round(completed / total * 100, 1) if total else 0.0,
+            )
+        )
     return result
 
 
-async def _get_tasks_by_priority(db: AsyncSession, project_ids: list[str]) -> list[TasksByPriority]:
+async def _get_tasks_by_priority(
+    db: AsyncSession, project_ids: list[str]
+) -> list[TasksByPriority]:
     if not project_ids:
         return []
-    rows = (await db.execute(
-        select(Task.priority, func.count(Task.id)).where(Task.project_id.in_(project_ids)).group_by(Task.priority)
-    )).all()
+    rows = (
+        await db.execute(
+            select(Task.priority, func.count(Task.id))
+            .where(Task.project_id.in_(project_ids))
+            .group_by(Task.priority)
+        )
+    ).all()
     return [TasksByPriority(priority=r[0], count=r[1]) for r in rows]
 
 
-async def _get_task_status_distribution(db: AsyncSession, project_ids: list[str]) -> list[TaskStatusDistribution]:
+async def _get_task_status_distribution(
+    db: AsyncSession, project_ids: list[str]
+) -> list[TaskStatusDistribution]:
     if not project_ids:
         return []
-    rows = (await db.execute(
-        select(Task.status, func.count(Task.id)).where(Task.project_id.in_(project_ids)).group_by(Task.status)
-    )).all()
+    rows = (
+        await db.execute(
+            select(Task.status, func.count(Task.id))
+            .where(Task.project_id.in_(project_ids))
+            .group_by(Task.status)
+        )
+    ).all()
     return [TaskStatusDistribution(status=r[0], count=r[1]) for r in rows]
 
 
-async def _get_team_productivity(db: AsyncSession, project_ids: list[str]) -> list[TeamProductivity]:
+async def _get_team_productivity(
+    db: AsyncSession, project_ids: list[str]
+) -> list[TeamProductivity]:
     if not project_ids:
         return []
-    member_ids = (await db.execute(
-        select(ProjectMember.user_id).where(ProjectMember.project_id.in_(project_ids)).distinct()
-    )).scalars().all()
+    member_ids = (
+        (
+            await db.execute(
+                select(ProjectMember.user_id)
+                .where(ProjectMember.project_id.in_(project_ids))
+                .distinct()
+            )
+        )
+        .scalars()
+        .all()
+    )
     if not member_ids:
         return []
 
-    users = (await db.execute(select(User).where(User.id.in_(member_ids)))).scalars().all()
+    users = (
+        (await db.execute(select(User).where(User.id.in_(member_ids)))).scalars().all()
+    )
     result = []
     for user in users:
-        total = (await db.execute(select(func.count(Task.id)).where(Task.assigned_to == user.id, Task.project_id.in_(project_ids)))).scalar() or 0
-        completed = (await db.execute(select(func.count(Task.id)).where(Task.assigned_to == user.id, Task.project_id.in_(project_ids), Task.status == TaskStatus.completed))).scalar() or 0
-        result.append(TeamProductivity(
-            user=UserSummary.model_validate(user), role=user.role, total=total, completed=completed, pending=total - completed
-        ))
+        total = (
+            await db.execute(
+                select(func.count(Task.id)).where(
+                    Task.assigned_to == user.id, Task.project_id.in_(project_ids)
+                )
+            )
+        ).scalar() or 0
+        completed = (
+            await db.execute(
+                select(func.count(Task.id)).where(
+                    Task.assigned_to == user.id,
+                    Task.project_id.in_(project_ids),
+                    Task.status == TaskStatus.completed,
+                )
+            )
+        ).scalar() or 0
+        result.append(
+            TeamProductivity(
+                user=UserSummary.model_validate(user),
+                role=user.role,
+                total=total,
+                completed=completed,
+                pending=total - completed,
+            )
+        )
     return result
 
 
-async def _get_upcoming_deadlines(db: AsyncSession, project_ids: list[str]) -> list[UpcomingDeadline]:
+async def _get_upcoming_deadlines(
+    db: AsyncSession, project_ids: list[str]
+) -> list[UpcomingDeadline]:
     if not project_ids:
         return []
     cutoff = date.today() + timedelta(days=7)
-    tasks = (await db.execute(
-        select(Task).options(joinedload(Task.project)).where(
-            Task.project_id.in_(project_ids),
-            Task.due_date >= date.today(),
-            Task.due_date <= cutoff,
-            Task.status != TaskStatus.completed,
-        ).order_by(Task.due_date)
-    )).scalars().all()
-    return [UpcomingDeadline(id=t.id, title=t.title, due_date=t.due_date, entity_type="task", project_name=t.project.name) for t in tasks]
+    tasks = (
+        (
+            await db.execute(
+                select(Task)
+                .options(joinedload(Task.project))
+                .where(
+                    Task.project_id.in_(project_ids),
+                    Task.due_date >= date.today(),
+                    Task.due_date <= cutoff,
+                    Task.status != TaskStatus.completed,
+                )
+                .order_by(Task.due_date)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [
+        UpcomingDeadline(
+            id=t.id,
+            title=t.title,
+            due_date=t.due_date,
+            entity_type="task",
+            project_name=t.project.name,
+        )
+        for t in tasks
+    ]
 
 
-async def _get_high_priority_tasks(db: AsyncSession, project_ids: list[str]) -> list[HighPriorityTask]:
+async def _get_high_priority_tasks(
+    db: AsyncSession, project_ids: list[str]
+) -> list[HighPriorityTask]:
     if not project_ids:
         return []
-    tasks = (await db.execute(
-        select(Task).options(joinedload(Task.project)).where(
-            Task.project_id.in_(project_ids),
-            Task.priority == Priority.high,
-            Task.status != TaskStatus.completed,
-        ).order_by(Task.due_date).limit(10)
-    )).scalars().all()
-    return [HighPriorityTask(id=t.id, title=t.title, project_id=t.project_id, project_name=t.project.name, priority=t.priority, status=t.status, due_date=t.due_date) for t in tasks]
+    tasks = (
+        (
+            await db.execute(
+                select(Task)
+                .options(joinedload(Task.project))
+                .where(
+                    Task.project_id.in_(project_ids),
+                    Task.priority == Priority.high,
+                    Task.status != TaskStatus.completed,
+                )
+                .order_by(Task.due_date)
+                .limit(10)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [
+        HighPriorityTask(
+            id=t.id,
+            title=t.title,
+            project_id=t.project_id,
+            project_name=t.project.name,
+            priority=t.priority,
+            status=t.status,
+            due_date=t.due_date,
+        )
+        for t in tasks
+    ]
 
 
 @router.get("", response_model=ApiResponse[DashboardResponse])
-async def get_dashboard(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def get_dashboard(
+    db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+):
     project_ids = await _accessible_project_ids(db, current_user)
     return ok(
         DashboardResponse(
             kpi=await _get_kpi(db, project_ids),
             project_summaries=await _get_project_summaries(db, project_ids),
             tasks_by_priority=await _get_tasks_by_priority(db, project_ids),
-            task_status_distribution=await _get_task_status_distribution(db, project_ids),
+            task_status_distribution=await _get_task_status_distribution(
+                db, project_ids
+            ),
             team_productivity=await _get_team_productivity(db, project_ids),
             upcoming_deadlines=await _get_upcoming_deadlines(db, project_ids),
             high_priority_tasks=await _get_high_priority_tasks(db, project_ids),
@@ -148,42 +297,72 @@ async def get_dashboard(db: AsyncSession = Depends(get_db), current_user: User =
 
 
 @router.get("/kpi", response_model=ApiResponse[KPIStats])
-async def get_kpi(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def get_kpi(
+    db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+):
     project_ids = await _accessible_project_ids(db, current_user)
     return ok(await _get_kpi(db, project_ids), "KPI stats retrieved")
 
 
 @router.get("/project-summaries", response_model=ApiResponse[list[ProjectSummary]])
-async def get_project_summaries(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def get_project_summaries(
+    db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+):
     project_ids = await _accessible_project_ids(db, current_user)
-    return ok(await _get_project_summaries(db, project_ids), "Project summaries retrieved")
+    return ok(
+        await _get_project_summaries(db, project_ids), "Project summaries retrieved"
+    )
 
 
 @router.get("/tasks-by-priority", response_model=ApiResponse[list[TasksByPriority]])
-async def get_tasks_by_priority(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def get_tasks_by_priority(
+    db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+):
     project_ids = await _accessible_project_ids(db, current_user)
-    return ok(await _get_tasks_by_priority(db, project_ids), "Tasks by priority retrieved")
+    return ok(
+        await _get_tasks_by_priority(db, project_ids), "Tasks by priority retrieved"
+    )
 
 
-@router.get("/task-status-distribution", response_model=ApiResponse[list[TaskStatusDistribution]])
-async def get_task_status_distribution(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+@router.get(
+    "/task-status-distribution",
+    response_model=ApiResponse[list[TaskStatusDistribution]],
+)
+async def get_task_status_distribution(
+    db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+):
     project_ids = await _accessible_project_ids(db, current_user)
-    return ok(await _get_task_status_distribution(db, project_ids), "Task status distribution retrieved")
+    return ok(
+        await _get_task_status_distribution(db, project_ids),
+        "Task status distribution retrieved",
+    )
 
 
 @router.get("/team-productivity", response_model=ApiResponse[list[TeamProductivity]])
-async def get_team_productivity(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def get_team_productivity(
+    db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+):
     project_ids = await _accessible_project_ids(db, current_user)
-    return ok(await _get_team_productivity(db, project_ids), "Team productivity retrieved")
+    return ok(
+        await _get_team_productivity(db, project_ids), "Team productivity retrieved"
+    )
 
 
 @router.get("/upcoming-deadlines", response_model=ApiResponse[list[UpcomingDeadline]])
-async def get_upcoming_deadlines(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def get_upcoming_deadlines(
+    db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+):
     project_ids = await _accessible_project_ids(db, current_user)
-    return ok(await _get_upcoming_deadlines(db, project_ids), "Upcoming deadlines retrieved")
+    return ok(
+        await _get_upcoming_deadlines(db, project_ids), "Upcoming deadlines retrieved"
+    )
 
 
 @router.get("/high-priority-tasks", response_model=ApiResponse[list[HighPriorityTask]])
-async def get_high_priority_tasks(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def get_high_priority_tasks(
+    db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+):
     project_ids = await _accessible_project_ids(db, current_user)
-    return ok(await _get_high_priority_tasks(db, project_ids), "High priority tasks retrieved")
+    return ok(
+        await _get_high_priority_tasks(db, project_ids), "High priority tasks retrieved"
+    )

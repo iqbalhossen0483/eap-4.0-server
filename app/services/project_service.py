@@ -53,7 +53,9 @@ async def list_projects(
     }.get(sort_by, Project.created_at)
     q = q.order_by(sort_col.desc())
 
-    total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar()
+    total = (
+        await db.execute(select(func.count()).select_from(q.subquery()))
+    ).scalar() or 0
     rows = (
         (await db.execute(q.offset((page - 1) * page_size).limit(page_size)))
         .scalars()
@@ -172,5 +174,8 @@ async def delete_project(db: AsyncSession, project_id: str, current_user: User) 
     loop = asyncio.get_event_loop()
     for public_id in public_ids:
         await loop.run_in_executor(
-            None, functools.partial(cloudinary.uploader.destroy, public_id, resource_type="raw")
+            None,
+            functools.partial(
+                cloudinary.uploader.destroy, public_id, resource_type="raw"
+            ),
         )

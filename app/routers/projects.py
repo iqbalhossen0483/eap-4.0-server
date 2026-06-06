@@ -24,9 +24,15 @@ async def list_projects(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    rows, total = await project_service.list_projects(db, current_user, search, status, sort_by, page, page_size)
+    rows, total = await project_service.list_projects(
+        db, current_user, search, status, sort_by, page, page_size
+    )
     return ok_paginated(
-        [ProjectRead.model_validate(r) for r in rows], total, page, page_size, "Projects retrieved"
+        [ProjectRead.model_validate(r) for r in rows],
+        total,
+        page,
+        page_size,
+        "Projects retrieved",
     )
 
 
@@ -37,7 +43,15 @@ async def create_project(
     current_user: User = Depends(require_role(Role.admin, Role.project_manager)),
 ):
     project = await project_service.create_project(db, body, current_user)
-    await log_activity(db, current_user, "project.created", "Project", project.id, project.id, {"name": project.name})
+    await log_activity(
+        db,
+        current_user,
+        "project.created",
+        "Project",
+        project.id,
+        project.id,
+        {"name": project.name},
+    )
     await db.commit()
     return ok(ProjectRead.model_validate(project), "Project created successfully")
 
@@ -60,7 +74,15 @@ async def update_project(
     current_user: User = Depends(get_current_user),
 ):
     project = await project_service.update_project(db, project_id, body, current_user)
-    await log_activity(db, current_user, "project.updated", "Project", project_id, project_id, {"name": project.name})
+    await log_activity(
+        db,
+        current_user,
+        "project.updated",
+        "Project",
+        project_id,
+        project_id,
+        {"name": project.name},
+    )
     await db.commit()
     return ok(ProjectRead.model_validate(project), "Project updated successfully")
 
@@ -85,7 +107,9 @@ async def list_members(
     return ok([MemberRead.model_validate(m) for m in members], "Members retrieved")
 
 
-@router.post("/{project_id}/members", response_model=ApiResponse[MemberRead], status_code=201)
+@router.post(
+    "/{project_id}/members", response_model=ApiResponse[MemberRead], status_code=201
+)
 async def add_member(
     project_id: str,
     body: AddMemberRequest,
@@ -93,7 +117,15 @@ async def add_member(
     current_user: User = Depends(require_role(Role.admin, Role.project_manager)),
 ):
     member = await member_service.add_member(db, project_id, body.user_id, current_user)
-    await log_activity(db, current_user, "member.added", "ProjectMember", body.user_id, project_id, {"user_id": body.user_id})
+    await log_activity(
+        db,
+        current_user,
+        "member.added",
+        "ProjectMember",
+        body.user_id,
+        project_id,
+        {"user_id": body.user_id},
+    )
     await db.commit()
     return ok(MemberRead.model_validate(member), "Member added successfully")
 

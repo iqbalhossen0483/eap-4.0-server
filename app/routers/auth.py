@@ -5,7 +5,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.user import User
 from app.models.enums import Role
-from app.schemas.auth import SignupRequest, LoginRequest, TokenResponse, UserRead, UserUpdate, PasswordChange
+from app.schemas.auth import (
+    SignupRequest,
+    LoginRequest,
+    TokenResponse,
+    UserRead,
+    UserUpdate,
+    PasswordChange,
+)
 from app.schemas.response import ApiResponse, ok
 from app.utils.security import hash_password, verify_password, create_access_token
 from app.dependencies.auth import get_current_user
@@ -15,7 +22,9 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/signup", response_model=ApiResponse[UserRead], status_code=201)
 async def signup(body: SignupRequest, db: AsyncSession = Depends(get_db)):
-    existing = (await db.execute(select(User).where(User.email == body.email))).scalar_one_or_none()
+    existing = (
+        await db.execute(select(User).where(User.email == body.email))
+    ).scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=409, detail="Email already registered")
 
@@ -33,14 +42,19 @@ async def signup(body: SignupRequest, db: AsyncSession = Depends(get_db)):
 
 @router.post("/login", response_model=ApiResponse[TokenResponse])
 async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
-    user = (await db.execute(select(User).where(User.email == body.email))).scalar_one_or_none()
+    user = (
+        await db.execute(select(User).where(User.email == body.email))
+    ).scalar_one_or_none()
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     if not await verify_password(body.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     token = create_access_token({"sub": user.id, "role": user.role.value})
-    return ok(TokenResponse(access_token=token), "Login successful")
+    return ok(
+        TokenResponse(access_token=token, user=UserRead.model_validate(user)),
+        "Login successful",
+    )
 
 
 @router.get("/me", response_model=ApiResponse[UserRead])

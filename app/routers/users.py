@@ -24,16 +24,36 @@ async def list_users(
     q = select(User).where(User.is_active == True)  # noqa: E712
 
     if current_user.role != Role.admin:
-        their_projects = select(ProjectMember.project_id).where(ProjectMember.user_id == current_user.id)
-        visible_users = select(ProjectMember.user_id).where(ProjectMember.project_id.in_(their_projects))
+        their_projects = select(ProjectMember.project_id).where(
+            ProjectMember.user_id == current_user.id
+        )
+        visible_users = select(ProjectMember.user_id).where(
+            ProjectMember.project_id.in_(their_projects)
+        )
         q = q.where(or_(User.id == current_user.id, User.id.in_(visible_users)))
 
     if search:
-        q = q.where(or_(User.name.ilike(f"%{search}%"), User.email.ilike(f"%{search}%")))
+        q = q.where(
+            or_(User.name.ilike(f"%{search}%"), User.email.ilike(f"%{search}%"))
+        )
 
-    total: int = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar() or 0
-    rows = (await db.execute(q.order_by(User.name).offset((page - 1) * page_size).limit(page_size))).scalars().all()
+    total: int = (
+        await db.execute(select(func.count()).select_from(q.subquery()))
+    ).scalar() or 0
+    rows = (
+        (
+            await db.execute(
+                q.order_by(User.name).offset((page - 1) * page_size).limit(page_size)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     return ok_paginated(
-        [UserRead.model_validate(r) for r in rows], total, page, page_size, "Users retrieved"
+        [UserRead.model_validate(r) for r in rows],
+        total,
+        page,
+        page_size,
+        "Users retrieved",
     )

@@ -20,13 +20,26 @@ async def list_comments(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    rows = (await db.execute(
-        select(Comment).options(selectinload(Comment.author)).where(Comment.task_id == task_id).order_by(Comment.created_at)
-    )).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                select(Comment)
+                .options(selectinload(Comment.author))
+                .where(Comment.task_id == task_id)
+                .order_by(Comment.created_at)
+            )
+        )
+        .scalars()
+        .all()
+    )
     return ok([CommentRead.model_validate(r) for r in rows], "Comments retrieved")
 
 
-@router.post("/tasks/{task_id}/comments", response_model=ApiResponse[CommentRead], status_code=201)
+@router.post(
+    "/tasks/{task_id}/comments",
+    response_model=ApiResponse[CommentRead],
+    status_code=201,
+)
 async def add_comment(
     task_id: str,
     body: CommentCreate,
@@ -36,12 +49,24 @@ async def add_comment(
     comment = Comment(task_id=task_id, author_id=current_user.id, body=body.body)
     db.add(comment)
     await db.flush()
-    await log_activity(db, current_user, "comment.added", "Comment", comment.id, None, {"task_id": task_id})
+    await log_activity(
+        db,
+        current_user,
+        "comment.added",
+        "Comment",
+        comment.id,
+        None,
+        {"task_id": task_id},
+    )
     await db.commit()
 
-    comment = (await db.execute(
-        select(Comment).options(selectinload(Comment.author)).where(Comment.id == comment.id)
-    )).scalar_one()
+    comment = (
+        await db.execute(
+            select(Comment)
+            .options(selectinload(Comment.author))
+            .where(Comment.id == comment.id)
+        )
+    ).scalar_one()
     return ok(CommentRead.model_validate(comment), "Comment added successfully")
 
 
@@ -51,11 +76,15 @@ async def delete_comment(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    comment = (await db.execute(select(Comment).where(Comment.id == comment_id))).scalar_one_or_none()
+    comment = (
+        await db.execute(select(Comment).where(Comment.id == comment_id))
+    ).scalar_one_or_none()
     if not comment:
         raise HTTPException(status_code=404, detail="Comment not found")
     if comment.author_id != current_user.id:
-        raise HTTPException(status_code=403, detail="You can only delete your own comments")
+        raise HTTPException(
+            status_code=403, detail="You can only delete your own comments"
+        )
     await db.delete(comment)
     await db.commit()
     return ok(None, "Comment deleted successfully")
